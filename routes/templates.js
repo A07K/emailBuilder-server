@@ -107,6 +107,123 @@ router.get("/test-auth", auth, async (req, res) => {
   }
 });
 
+router.get("/templates", auth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Get user document to access template lists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    // Fetch all templates that belong to the user
+    const templates = await Template.find({
+      _id: { $in: user.templates.all },
+    }).sort({ updatedAt: -1 }); // Sort by most recently updated
+
+    // Map templates to include their status (favorite/recent)
+    const templatesWithStatus = templates.map((template) => ({
+      _id: template._id,
+      name: template.name,
+      content: template.content,
+      isFavorite: user.templates.fav.includes(template._id),
+      isRecent: user.templates.recents.includes(template._id),
+      createdAt: template.createdAt,
+      updatedAt: template.updatedAt,
+    }));
+
+    // Organize templates by category
+    const organizedTemplates = {
+      all: templatesWithStatus,
+      favorites: templatesWithStatus.filter((t) => t.isFavorite),
+      recent: user.templates.recents
+        .map((recentId) =>
+          templatesWithStatus.find(
+            (t) => t._id.toString() === recentId.toString()
+          )
+        )
+        .filter(Boolean), // Keep the recent order and remove any null values
+    };
+
+    res.json({
+      message: "Templates retrieved successfully",
+      templates: organizedTemplates,
+      count: {
+        total: templatesWithStatus.length,
+        favorites: organizedTemplates.favorites.length,
+        recent: organizedTemplates.recent.length,
+      },
+    });
+  } catch (error) {
+    console.error("Get templates error:", error);
+    res.status(500).json({
+      message: "Error retrieving templates",
+    });
+  }
+});
+
+// Optional: Add a route to get templates by category
+router.get("/templates/:category", auth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const category = req.params.category.toLowerCase();
+
+    if (!["all", "favorites", "recent"].includes(category)) {
+      return res.status(400).json({
+        message: "Invalid category. Use 'all', 'favorites', or 'recent'",
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    let templateIds;
+    switch (category) {
+      case "all":
+        templateIds = user.templates.all;
+        break;
+      case "favorites":
+        templateIds = user.templates.fav;
+        break;
+      case "recent":
+        templateIds = user.templates.recents;
+        break;
+    }
+
+    const templates = await Template.find({
+      _id: { $in: templateIds },
+    });
+
+    // If category is 'recent', maintain the order from user.templates.recents
+    const orderedTemplates =
+      category === "recent"
+        ? templateIds
+            .map((id) =>
+              templates.find((t) => t._id.toString() === id.toString())
+            )
+            .filter(Boolean)
+        : templates;
+
+    res.json({
+      message: `${category} templates retrieved successfully`,
+      templates: orderedTemplates,
+      count: orderedTemplates.length,
+    });
+  } catch (error) {
+    console.error(`Get ${req.params.category} templates error:`, error);
+    res.status(500).json({
+      message: "Error retrieving templates",
+    });
+  }
+});
+
 function renderBlock(block, values) {
   let renderedContent = "";
 
