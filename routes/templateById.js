@@ -7,7 +7,7 @@ const User = require("../models/User");
 const router = express.Router();
 
 // GET /templates/:id - Get template by ID
-router.get("/templates/:id", auth, async (req, res) => {
+router.get("/templateById/:id", auth, async (req, res) => {
   try {
     const templateId = req.params.id;
     const userId = req.user.id;
