@@ -152,7 +152,7 @@ router.get("/debug/template/:id", auth, async (req, res) => {
   }
 });
 
-router.put("/templates/:id", auth, async (req, res) => {
+router.put("/updateTemplate/:id", auth, async (req, res) => {
   try {
     const templateId = req.params.id;
     const userId = req.user.id;
