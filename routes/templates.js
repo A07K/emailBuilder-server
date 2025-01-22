@@ -358,3 +358,5 @@ router.post("/render-template/:id", auth, async (req, res) => {
 });
 
 module.exports = router;
+
+/*for comparison making it to the front end*/
