@@ -5,7 +5,6 @@ const auth = require("../middleware/auth");
 
 const router = express.Router();
 
-// POST /templates - Create new template
 router.post("/templates", auth, async (req, res) => {
   try {
     const { name, content, style, isFavorite } = req.body;
@@ -81,7 +80,6 @@ router.post("/templates", auth, async (req, res) => {
   }
 });
 
-// Add a test route to verify authentication
 router.get("/test-auth", auth, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -165,7 +163,6 @@ router.get("/templates", auth, async (req, res) => {
   }
 });
 
-// Optional: Add a route to get templates by category
 router.get("/templates/:category", auth, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -357,6 +354,76 @@ router.post("/render-template/:id", auth, async (req, res) => {
   }
 });
 
-module.exports = router;
+router.delete("/templates/:id", auth, async (req, res) => {
+  try {
+    const templateId = req.params.id;
+    const userId = req.user.id;
 
-/*for comparison making it to the front end*/
+    // First verify the user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    // Find and delete the template, ensuring it belongs to the user
+    const deletedTemplate = await Template.findOneAndDelete({
+      _id: templateId,
+      user: userId,
+    });
+
+    if (!deletedTemplate) {
+      return res.status(404).json({
+        message: "Template not found or unauthorized",
+      });
+    }
+
+    // Update the user's template arrays to remove the deleted template
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        $pull: {
+          "templates.all": templateId,
+          "templates.fav": templateId,
+          "templates.recents": templateId,
+        },
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(500).json({
+        message: "Failed to update user after template deletion",
+      });
+    }
+
+    res.json({
+      message: "Template deleted successfully",
+      deletedTemplate: {
+        id: deletedTemplate._id,
+        name: deletedTemplate.name,
+      },
+      user: {
+        templatesCount: updatedUser.templates.all.length,
+        favoritesCount: updatedUser.templates.fav.length,
+        recentsCount: updatedUser.templates.recents.length,
+      },
+    });
+  } catch (error) {
+    console.error("Template deletion error:", error);
+
+    if (error.name === "CastError") {
+      return res.status(400).json({
+        message: "Invalid template ID format",
+      });
+    }
+
+    res.status(500).json({
+      message: "An error occurred while deleting the template",
+      error: error.message,
+    });
+  }
+});
+
+module.exports = router;
